@@ -1,77 +1,36 @@
-# Raksh Backend
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-Raksh is now a minimal streaming backend.
-It keeps the original NEWS-style scoring and trend/risk logic, but removes the
-extra patient-data server, ward ranking layer, and simulators.
+## Getting Started
 
-## Architecture
-
-- `backend_server.py` starts the HTTP API
-- `main.py` lets you score direct inputs from the command line
-- `raksh_backend/news.py` keeps the NEWS-style subscore rules
-- `raksh_backend/trends.py` keeps the rolling trend detection
-- `raksh_backend/risk.py` keeps weighted risk, interaction bonuses, context adjustment, and smoothing
-- `raksh_backend/pipeline.py` keeps state for one patient's continuous stream
-- `raksh_backend/service.py` routes each incoming reading to that patient's stream
-- `raksh_backend/http_api.py` exposes one endpoint: `POST /vitals`
-
-## Run The Server
+First, run the development server:
 
 ```bash
-python3 backend_server.py --host 127.0.0.1 --port 8000
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
 ```
 
-## Stream Vitals Into The Single Endpoint
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-Send each new reading to the same endpoint as the patient continues streaming:
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-```bash
-curl -X POST http://127.0.0.1:8000/vitals \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "patient_id": "PT-001",
-    "vitals": {
-      "hr": 112,
-      "bp_sys": 92,
-      "spo2": 91,
-      "rr": 28,
-      "temp": 39.2,
-      "hb": 8.1,
-      "age": 70
-    }
-  }'
-```
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-Post the next reading for `PT-001` to the same endpoint again, and Raksh will
-reuse that patient's internal trend window and smoothing state.
+## Learn More
 
-## Run With Direct Input
+To learn more about Next.js, take a look at the following resources:
 
-```bash
-python3 main.py --patient-id PT-001 --hr 112 --bp-sys 92 --spo2 91 --rr 28 --temp 39.2 --hb 8.1 --age 70
-```
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-## Run With JSON Input
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-```bash
-echo '{"patient_id":"PT-001","vitals":{"hr":112,"bp_sys":92,"spo2":91,"rr":28,"temp":39.2,"hb":8.1,"age":70}}' | python3 main.py --stdin
-```
+## Deploy on Vercel
 
-## Use From Python
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-```python
-from raksh_backend import RakshBackend
-
-backend = RakshBackend()
-
-first = backend.ingest_vitals(
-    "PT-001",
-    {"hr": 112, "bp_sys": 92, "spo2": 91, "rr": 28, "temp": 39.2, "hb": 8.1, "age": 70},
-)
-second = backend.ingest_vitals(
-    "PT-001",
-    {"hr": 118, "bp_sys": 89, "spo2": 90, "rr": 30, "temp": 39.4, "hb": 8.1, "age": 70},
-)
-print(first)
-print(second)
-```
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

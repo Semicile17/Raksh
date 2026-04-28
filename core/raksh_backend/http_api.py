@@ -22,6 +22,11 @@ class BackendHTTPServer(ThreadingHTTPServer):
 class BackendRequestHandler(BaseHTTPRequestHandler):
     server: BackendHTTPServer
 
+    def do_OPTIONS(self) -> None:
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self._send_cors_headers()
+        self.end_headers()
+
     def do_POST(self) -> None:
         if urlparse(self.path).path != "/vitals":
             self._send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
@@ -30,6 +35,13 @@ class BackendRequestHandler(BaseHTTPRequestHandler):
         try:
             payload = self._read_json()
             output = self.server.backend.ingest_event(payload)
+            
+            # Print the result to the terminal so the user can see it processing
+            pid = output.get("patient_id", "Unknown")
+            score = output.get("smoothed_score", 0)
+            alert = output.get("alert_level", "UNKNOWN")
+            print(f"[STREAM] Patient: {pid: <8} | Score: {score: >5.1f} | Alert: {alert: <8} | Reasons: {len(output.get('reasons', []))}")
+            
         except ValueError as exc:
             self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
             return
@@ -50,9 +62,15 @@ class BackendRequestHandler(BaseHTTPRequestHandler):
             raise ValueError("Request body must be a JSON object")
         return payload
 
+    def _send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
     def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:
         body = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
         self.send_response(status)
+        self._send_cors_headers()
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
