@@ -12,6 +12,7 @@ export const SimulationPanel = () => {
   const { selectedPatient } = usePatientStore();
   const { 
     allVitals, 
+    targetVitals,
     backendResults,
     setPatientVital, 
     isStreaming, 
@@ -46,6 +47,7 @@ export const SimulationPanel = () => {
   }
 
   const patientVitals = allVitals[selectedPatient.patient_id] || DEFAULT_VITALS;
+  const patientTargets = targetVitals[selectedPatient.patient_id] || patientVitals;
   const result = backendResults[selectedPatient.patient_id];
 
   const getAlertColor = (level: string) => {
@@ -104,7 +106,7 @@ export const SimulationPanel = () => {
       {/* Controls Bar */}
       <Card className="p-4 mb-8 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <span className="text-xs font-bold uppercase tracking-widest text-slate-400 mr-2">Presets (Selected):</span>
+          <span className="text-xs font-bold uppercase tracking-widest text-slate-400 mr-2">Target Presets:</span>
           <div className="flex flex-wrap gap-2">
             {Object.keys(PRESETS).map((name) => (
               <Button 
@@ -167,6 +169,7 @@ export const SimulationPanel = () => {
             vitalKey={key}
             config={config}
             value={patientVitals[key]}
+            targetValue={patientTargets[key]}
             onChange={(val: number) => setPatientVital(selectedPatient.patient_id, key, val)}
           />
         ))}
@@ -175,8 +178,12 @@ export const SimulationPanel = () => {
   );
 };
 
-const VitalCard = ({ vitalKey, config, value, onChange }: any) => {
+const VitalCard = ({ vitalKey, config, value, targetValue, onChange }: any) => {
   const status = getStatusColor(vitalKey, value);
+  const isMoving = value !== targetValue;
+  const targetPercent = ((targetValue - config.min) / (config.max - config.min)) * 100;
+  const displayValue = vitalKey === 'temp' ? Number(value).toFixed(1) : Math.round(value);
+  const displayTarget = vitalKey === 'temp' ? Number(targetValue).toFixed(1) : Math.round(targetValue);
   const colorMap = {
     green: 'border-green-500 text-green-600 bg-green-50/10',
     yellow: 'border-yellow-500 text-yellow-600 bg-yellow-50/10',
@@ -189,9 +196,12 @@ const VitalCard = ({ vitalKey, config, value, onChange }: any) => {
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-500">{config.label}</h3>
           <div className="flex items-baseline gap-1">
-            <span className="text-4xl font-black tracking-tight">{value}</span>
+            <span className="text-4xl font-black tracking-tight">{displayValue}</span>
             <span className="text-slate-400 text-sm font-medium">{config.unit}</span>
           </div>
+          <p className="mt-1 text-xs font-semibold text-slate-400">
+            Target {displayTarget}{config.unit} {isMoving ? '• trending' : '• reached'}
+          </p>
         </div>
         <div className={`p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800`}>
           {vitalKey === 'hr' && <TrendingUp className="h-5 w-5" />}
@@ -206,7 +216,7 @@ const VitalCard = ({ vitalKey, config, value, onChange }: any) => {
         <Slider 
           min={config.min} 
           max={config.max} 
-          value={value} 
+          value={targetValue} 
           onChange={onChange}
         />
         
@@ -217,12 +227,16 @@ const VitalCard = ({ vitalKey, config, value, onChange }: any) => {
         </div>
 
         {/* Gauge Simulation */}
-        <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+        <div className="relative h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full">
           <div 
-            className={`h-full transition-all duration-500 ${
+            className={`h-full rounded-full transition-all duration-500 ${
               status === 'green' ? 'bg-green-500' : status === 'yellow' ? 'bg-yellow-500' : 'bg-red-500'
             }`}
             style={{ width: `${((value - config.min) / (config.max - config.min)) * 100}%` }}
+          />
+          <div
+            className="absolute top-1/2 h-4 w-1 -translate-y-1/2 rounded-full bg-slate-900 shadow dark:bg-white"
+            style={{ left: `calc(${Math.max(0, Math.min(100, targetPercent))}% - 2px)` }}
           />
         </div>
       </div>

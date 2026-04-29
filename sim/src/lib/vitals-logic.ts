@@ -57,6 +57,22 @@ export const applyAutoDrift = (vitals: Vitals, isDeteriorating: boolean): Vitals
   return nextVitals;
 };
 
+const approach = (current: number, target: number, maxStep: number, precision = 1): number => {
+  const delta = target - current;
+  if (Math.abs(delta) <= maxStep) return Number(target.toFixed(precision));
+
+  const next = current + Math.sign(delta) * maxStep;
+  return Number(next.toFixed(precision));
+};
+
+export const progressVitalsTowardTarget = (current: Vitals, target: Vitals): Vitals => ({
+  hr: approach(current.hr, target.hr, 0.7),
+  bp_sys: approach(current.bp_sys, target.bp_sys, 0.8),
+  spo2: approach(current.spo2, target.spo2, 0.3),
+  rr: approach(current.rr, target.rr, 0.25),
+  temp: approach(current.temp, target.temp, 0.035, 2),
+});
+
 export const PRESETS: Record<string, Vitals> = {
   Normal: { hr: 72, bp_sys: 118, spo2: 98, rr: 14, temp: 36.8 },
   Tachycardia: { hr: 145, bp_sys: 130, spo2: 96, rr: 24, temp: 37.2 },

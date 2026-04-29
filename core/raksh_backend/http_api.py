@@ -27,6 +27,28 @@ class BackendRequestHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.end_headers()
 
+    def do_GET(self) -> None:
+        path = urlparse(self.path).path.rstrip("/") or "/"
+
+        if path == "/health":
+            self._send_json({"status": "ok"})
+            return
+
+        if path == "/results":
+            self._send_json({"results": self.server.backend.get_latest_results()})
+            return
+
+        if path.startswith("/results/"):
+            patient_id = path.removeprefix("/results/")
+            result = self.server.backend.get_latest_result(patient_id)
+            if result is None:
+                self._send_json({"error": "No result for patient"}, HTTPStatus.NOT_FOUND)
+                return
+            self._send_json(result)
+            return
+
+        self._send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+
     def do_POST(self) -> None:
         if urlparse(self.path).path != "/vitals":
             self._send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
@@ -64,7 +86,7 @@ class BackendRequestHandler(BaseHTTPRequestHandler):
 
     def _send_cors_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
     def _send_json(self, payload: dict[str, Any], status: HTTPStatus = HTTPStatus.OK) -> None:

@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSimulationStore, Vitals, DEFAULT_VITALS } from '@/store/useSimulationStore';
 import { usePatientStore } from '@/store/usePatientStore';
-import { applyAutoDrift } from '@/lib/vitals-logic';
+import { applyAutoDrift, progressVitalsTowardTarget } from '@/lib/vitals-logic';
 
 export const useVitalStream = () => {
   const { 
     allVitals, 
+    targetVitals,
     isStreaming, 
     autoDrift, 
     deteriorationMode, 
     batchUpdateVitals, 
+    batchUpdateTargetVitals,
     batchUpdateResults,
     setLastSent 
   } = useSimulationStore();
@@ -19,11 +21,11 @@ export const useVitalStream = () => {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
   // Refs to avoid re-triggering the effect on every state change
-  const stateRef = useRef({ allVitals, isStreaming, autoDrift, deteriorationMode, patients });
+  const stateRef = useRef({ allVitals, targetVitals, isStreaming, autoDrift, deteriorationMode, patients });
   
   useEffect(() => {
-    stateRef.current = { allVitals, isStreaming, autoDrift, deteriorationMode, patients };
-  }, [allVitals, isStreaming, autoDrift, deteriorationMode, patients]);
+    stateRef.current = { allVitals, targetVitals, isStreaming, autoDrift, deteriorationMode, patients };
+  }, [allVitals, targetVitals, isStreaming, autoDrift, deteriorationMode, patients]);
 
   // Main Simulation & Streaming Loop
   useEffect(() => {
@@ -33,7 +35,14 @@ export const useVitalStream = () => {
     const apiUrl = process.env.NEXT_PUBLIC_CORE_API_URL || 'http://127.0.0.1:8000/vitals';
 
     intervalRef.current = setInterval(async () => {
-      const { allVitals: currentAllVitals, isStreaming: streaming, autoDrift: drift, deteriorationMode: fatal, patients: list } = stateRef.current;
+      const { 
+        allVitals: currentAllVitals, 
+        targetVitals: currentTargets,
+        isStreaming: streaming, 
+        autoDrift: drift, 
+        deteriorationMode: fatal, 
+        patients: list 
+      } = stateRef.current;
       
       if (!streaming || list.length === 0) {
         setIsConnected(false);
@@ -41,18 +50,23 @@ export const useVitalStream = () => {
       }
 
       const updates: Record<string, Vitals> = {};
+      const targetUpdates: Record<string, Vitals> = {};
       const results: Record<string, any> = {};
       let successfulSends = 0;
 
       // Use Promise.all to send requests concurrently instead of sequentially
       const promises = list.map(async (patient) => {
         const pId = patient.patient_id;
-        let v = currentAllVitals[pId] || { ...DEFAULT_VITALS };
+        const currentVitals = currentAllVitals[pId] || { ...DEFAULT_VITALS };
+        let target = currentTargets[pId] || currentVitals;
 
         if (drift) {
-          v = applyAutoDrift(v, fatal);
-          updates[pId] = v;
+          target = applyAutoDrift(target, fatal);
+          targetUpdates[pId] = target;
         }
+
+        const v = progressVitalsTowardTarget(currentVitals, target);
+        updates[pId] = v;
 
         try {
           const response = await fetch(apiUrl, {
@@ -84,6 +98,10 @@ export const useVitalStream = () => {
       if (Object.keys(updates).length > 0) {
         batchUpdateVitals(updates);
       }
+
+      if (Object.keys(targetUpdates).length > 0) {
+        batchUpdateTargetVitals(targetUpdates);
+      }
       
       if (Object.keys(results).length > 0) {
         batchUpdateResults(results);
@@ -100,7 +118,7 @@ export const useVitalStream = () => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [batchUpdateVitals, setLastSent]); // Only depend on stable actions
+  }, [batchUpdateVitals, batchUpdateTargetVitals, setLastSent]); // Only depend on stable actions
 
   return {
     isConnected,

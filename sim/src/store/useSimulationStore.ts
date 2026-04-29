@@ -9,7 +9,8 @@ export interface Vitals {
 }
 
 interface SimulationState {
-  allVitals: Record<string, Vitals>; // patient_id -> Vitals
+  allVitals: Record<string, Vitals>; // patient_id -> live vitals sent to core
+  targetVitals: Record<string, Vitals>; // patient_id -> operator-set destination vitals
   backendResults: Record<string, any>; // patient_id -> latest backend output
   isStreaming: boolean;
   autoDrift: boolean;
@@ -24,6 +25,7 @@ interface SimulationState {
   setLastSent: (timestamp: number) => void;
   initializePatient: (patientId: string) => void;
   batchUpdateVitals: (updates: Record<string, Vitals>) => void;
+  batchUpdateTargetVitals: (updates: Record<string, Vitals>) => void;
   batchUpdateResults: (results: Record<string, any>) => void;
 }
 
@@ -37,6 +39,7 @@ export const DEFAULT_VITALS: Vitals = {
 
 export const useSimulationStore = create<SimulationState>((set) => ({
   allVitals: {},
+  targetVitals: {},
   backendResults: {},
   isStreaming: false,
   autoDrift: false,
@@ -45,18 +48,23 @@ export const useSimulationStore = create<SimulationState>((set) => ({
 
   initializePatient: (patientId) => 
     set((state) => {
-      if (state.allVitals[patientId]) return state;
+      const liveVitals = state.allVitals[patientId] || { ...DEFAULT_VITALS };
+      const targetVitals = state.targetVitals[patientId] || { ...liveVitals };
+
+      if (state.allVitals[patientId] && state.targetVitals[patientId]) return state;
+
       return {
-        allVitals: { ...state.allVitals, [patientId]: { ...DEFAULT_VITALS } }
+        allVitals: { ...state.allVitals, [patientId]: liveVitals },
+        targetVitals: { ...state.targetVitals, [patientId]: targetVitals },
       };
     }),
 
   setPatientVital: (patientId, key, value) =>
     set((state) => ({
-      allVitals: {
-        ...state.allVitals,
+      targetVitals: {
+        ...state.targetVitals,
         [patientId]: {
-          ...(state.allVitals[patientId] || DEFAULT_VITALS),
+          ...(state.targetVitals[patientId] || state.allVitals[patientId] || DEFAULT_VITALS),
           [key]: value,
         },
       },
@@ -64,12 +72,17 @@ export const useSimulationStore = create<SimulationState>((set) => ({
 
   setPatientVitals: (patientId, vitals) =>
     set((state) => ({
-      allVitals: { ...state.allVitals, [patientId]: vitals },
+      targetVitals: { ...state.targetVitals, [patientId]: { ...vitals } },
     })),
 
   batchUpdateVitals: (updates) => 
     set((state) => ({
       allVitals: { ...state.allVitals, ...updates }
+    })),
+
+  batchUpdateTargetVitals: (updates) =>
+    set((state) => ({
+      targetVitals: { ...state.targetVitals, ...updates }
     })),
 
   batchUpdateResults: (results) => 
